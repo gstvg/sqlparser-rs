@@ -255,104 +255,197 @@ fn test_duckdb_struct_literal() {
     let select = duckdb_and_generic().verified_only_select(sql);
     assert_eq!(6, select.projection.len());
     assert_eq!(
-        &Expr::Struct {
-            values: vec![
-                Expr::Named {
-                    expr: Box::new(Expr::Value(number("1"))),
-                    name: Ident::with_quote('\'', "a")
+        &Expr::Dictionary {
+            fields: vec![
+                DictionaryField {
+                    value: Expr::Value(number("1")).into(),
+                    key: Expr::Identifier(Ident::with_quote('\'', "a")).into()
                 },
-                Expr::Named {
-                    expr: Box::new(Expr::Value(number("2"))),
-                    name: Ident::with_quote('\'', "b")
+                DictionaryField {
+                    value: Box::new(Expr::Value(number("2"))),
+                    key: Expr::Identifier(Ident::with_quote('\'', "b")).into()
                 },
-                Expr::Named {
-                    expr: Box::new(Expr::Value(number("3"))),
-                    name: Ident::with_quote('\'', "c")
+                DictionaryField {
+                    value: Box::new(Expr::Value(number("3"))),
+                    key: Expr::Identifier(Ident::with_quote('\'', "c")).into()
                 },
             ],
-            fields: Default::default(),
-            array_notation: true
+            is_map: false
         },
         expr_from_projection(&select.projection[0])
     );
 
     assert_eq!(
-        &Expr::Struct {
-            values: vec![Expr::Named {
-                expr: Box::new(Expr::Value(Value::SingleQuotedString("abc".to_string()))),
-                name: Ident::with_quote('\'', "a")
+        &Expr::Dictionary {
+            fields: vec![DictionaryField {
+                value: Box::new(Expr::Value(Value::SingleQuotedString("abc".to_string()))),
+                key: Expr::Identifier(Ident::with_quote('\'', "a")).into()
             },],
-            fields: Default::default(),
-            array_notation: true
+            is_map: false
         },
         expr_from_projection(&select.projection[1])
     );
     assert_eq!(
-        &Expr::Struct {
-            values: vec![
-                Expr::Named {
-                    expr: Box::new(Expr::Value(number("1"))),
-                    name: Ident::with_quote('\'', "a")
+        &Expr::Dictionary {
+            fields: vec![
+                DictionaryField {
+                    value: Box::new(Expr::Value(number("1"))),
+                    key: Expr::Identifier(Ident::with_quote('\'', "a")).into()
                 },
-                Expr::Named {
-                    expr: Box::new(Expr::CompoundIdentifier(vec![
+                DictionaryField {
+                    value: Box::new(Expr::CompoundIdentifier(vec![
                         Ident::from("t"),
                         Ident::from("str_col")
                     ])),
-                    name: Ident::with_quote('\'', "b")
+                    key: Expr::Identifier(Ident::with_quote('\'', "b")).into()
                 },
             ],
-            fields: Default::default(),
-            array_notation: true
+            is_map: false
         },
         expr_from_projection(&select.projection[2])
     );
     assert_eq!(
-        &Expr::Struct {
-            values: vec![
-                Expr::Named {
-                    expr: Expr::Value(number("1")).into(),
-                    name: Ident::with_quote('\'', "a")
+        &Expr::Dictionary {
+            fields: vec![
+                DictionaryField {
+                    value: Expr::Value(number("1")).into(),
+                    key: Expr::Identifier(Ident::with_quote('\'', "a")).into()
                 },
-                Expr::Named {
-                    expr: Expr::Value(Value::SingleQuotedString("abc".to_string())).into(),
-                    name: Ident::with_quote('\'', "b")
+                DictionaryField {
+                    value: Expr::Value(Value::SingleQuotedString("abc".to_string())).into(),
+                    key: Expr::Identifier(Ident::with_quote('\'', "b")).into()
                 },
             ],
-            fields: Default::default(),
-            array_notation: true
+            is_map: false
         },
         expr_from_projection(&select.projection[3])
     );
     assert_eq!(
-        &Expr::Struct {
-            values: vec![Expr::Named {
-                expr: Expr::Identifier(Ident::from("str_col")).into(),
-                name: Ident::with_quote('\'', "abc")
+        &Expr::Dictionary {
+            fields: vec![DictionaryField {
+                value: Expr::Identifier(Ident::from("str_col")).into(),
+                key: Expr::Identifier(Ident::with_quote('\'', "abc")).into()
             }],
-            fields: Default::default(),
-            array_notation: true
+            is_map: false
         },
         expr_from_projection(&select.projection[4])
     );
     assert_eq!(
-        &Expr::Struct {
-            values: vec![Expr::Named {
-                expr: Expr::Struct {
-                    values: vec![
-                        Expr::Named {
-                            expr: Expr::Value(number("1")).into(),
-                            name: Ident::with_quote('\'', "aa")
-                        }
-                    ],
-                    fields: vec![],
-                    array_notation: true
+        &Expr::Dictionary {
+            fields: vec![DictionaryField {
+                value: Expr::Dictionary {
+                    fields: vec![DictionaryField {
+                        value: Expr::Value(number("1")).into(),
+                        key: Expr::Identifier(Ident::with_quote('\'', "aa")).into()
+                    }],
+                    is_map: false
                 }
                 .into(),
-                name: Ident::with_quote('\'', "a")
+                key: Expr::Identifier(Ident::with_quote('\'', "a")).into()
             }],
-            fields: Default::default(),
-            array_notation: true
+            is_map: false
+        },
+        expr_from_projection(&select.projection[5])
+    );
+}
+
+#[test]
+fn test_duckdb_map_literal() {
+    //array notation struct syntax https://duckdb.org/docs/sql/data_types/struct#creating-structs
+    //syntax: {'field_name': expr1[, ... ]}
+    let sql = "SELECT MAP {'a': 1, 'b': 2, 'c': 3}, MAP {'a': 'abc'}, MAP {'a': 1, 'b': t.str_col}, MAP {'a': 1, 'b': 'abc'}, MAP {'abc': str_col}, MAP {'a': MAP {'aa': 1}}";
+    let select = duckdb().verified_only_select(sql);
+    assert_eq!(6, select.projection.len());
+    assert_eq!(
+        &Expr::Dictionary {
+            fields: vec![
+                DictionaryField {
+                    value: Expr::Value(number("1")).into(),
+                    key: Expr::Value(Value::SingleQuotedString("a".to_string())).into()
+                },
+                DictionaryField {
+                    value: Box::new(Expr::Value(number("2"))),
+                    key: Expr::Value(Value::SingleQuotedString("b".to_string())).into()
+                },
+                DictionaryField {
+                    value: Box::new(Expr::Value(number("3"))),
+                    key: Expr::Value(Value::SingleQuotedString("c".to_string())).into()
+                },
+            ],
+            is_map: true
+        },
+        expr_from_projection(&select.projection[0])
+    );
+
+    assert_eq!(
+        &Expr::Dictionary {
+            fields: vec![DictionaryField {
+                value: Box::new(Expr::Value(Value::SingleQuotedString("abc".to_string()))),
+                key: Expr::Value(Value::SingleQuotedString("a".to_string())).into()
+            },],
+            is_map: true
+        },
+        expr_from_projection(&select.projection[1])
+    );
+    assert_eq!(
+        &Expr::Dictionary {
+            fields: vec![
+                DictionaryField {
+                    value: Box::new(Expr::Value(number("1"))),
+                    key: Expr::Value(Value::SingleQuotedString("a".to_string())).into()
+                },
+                DictionaryField {
+                    value: Box::new(Expr::CompoundIdentifier(vec![
+                        Ident::from("t"),
+                        Ident::from("str_col")
+                    ])),
+                    key: Expr::Value(Value::SingleQuotedString("b".to_string())).into()
+                },
+            ],
+            is_map: true
+        },
+        expr_from_projection(&select.projection[2])
+    );
+    assert_eq!(
+        &Expr::Dictionary {
+            fields: vec![
+                DictionaryField {
+                    value: Expr::Value(number("1")).into(),
+                    key: Expr::Value(Value::SingleQuotedString("a".to_string())).into()
+                },
+                DictionaryField {
+                    value: Expr::Value(Value::SingleQuotedString("abc".to_string())).into(),
+                    key: Expr::Value(Value::SingleQuotedString("b".to_string())).into()
+                },
+            ],
+            is_map: true
+        },
+        expr_from_projection(&select.projection[3])
+    );
+    assert_eq!(
+        &Expr::Dictionary {
+            fields: vec![DictionaryField {
+                value: Expr::Identifier(Ident::from("str_col")).into(),
+                key: Expr::Value(Value::SingleQuotedString("abc".to_string())).into()
+            }],
+            is_map: true
+        },
+        expr_from_projection(&select.projection[4])
+    );
+    assert_eq!(
+        &Expr::Dictionary {
+            fields: vec![DictionaryField {
+                value: Expr::Dictionary {
+                    fields: vec![DictionaryField {
+                        value: Expr::Value(number("1")).into(),
+                        key: Expr::Value(Value::SingleQuotedString("aa".to_string())).into()
+                    }],
+                    is_map: true
+                }
+                .into(),
+                key: Expr::Value(Value::SingleQuotedString("a".to_string())).into()
+            }],
+            is_map: true
         },
         expr_from_projection(&select.projection[5])
     );

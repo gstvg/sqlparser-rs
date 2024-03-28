@@ -965,6 +965,13 @@ impl<'a> Parser<'a> {
                     self.prev_token();
                     self.parse_bigquery_struct_literal()
                 }
+                Keyword::MAP
+                    if dialect_of!(self is DuckDbDialect) && self.consume_token(&Token::LBrace) =>
+                {
+                    self.prev_token();
+                    self.prev_token();
+                    self.parse_duckdb_dictionary_literal()
+                }
                 // Here `w` is a word, check if it's a part of a multi-part
                 // identifier, a function call, or a simple identifier:
                 _ => match self.peek_token().token {
@@ -1117,9 +1124,10 @@ impl<'a> Parser<'a> {
                 self.prev_token();
                 Ok(Expr::Value(self.parse_value()?))
             }
-            Token::LBrace if dialect_of!(self is DuckDbDialect | GenericDialect) => {
+            Token::LBrace if dialect_of!(self is DuckDbDialect | SnowflakeDialect | GenericDialect) =>
+            {
                 self.prev_token();
-                self.parse_duckdb_struct_literal()
+                self.parse_duckdb_dictionary_literal()
             }
             _ => self.expected("an expression:", next_token),
         }?;
@@ -2012,11 +2020,7 @@ impl<'a> Parser<'a> {
             .parse_comma_separated(|parser| parser.parse_struct_field_expr(!fields.is_empty()))?;
         self.expect_token(&Token::RParen)?;
 
-        Ok(Expr::Struct {
-            values,
-            fields,
-            array_notation: false,
-        })
+        Ok(Expr::Struct { values, fields })
     }
 
     /// Parse an expression value for a bigquery struct [1]
@@ -2135,49 +2139,54 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    /// DuckDB specific: Parse a struct literal [1]
+    /// DuckDB specific: Parse a dictionary literal [1][2]
     /// Syntax
     /// ```sql
     /// {'field_name': expr1[, ... ]}
     /// ```
     ///
-    /// [1] https://duckdb.org/docs/sql/data_types/struct#creating-structs
-    fn parse_duckdb_struct_literal(&mut self) -> Result<Expr, ParserError> {
+    /// [1]: https://duckdb.org/docs/sql/data_types/map
+    /// [2] https://duckdb.org/docs/sql/data_types/struct#creating-structs
+    fn parse_duckdb_dictionary_literal(&mut self) -> Result<Expr, ParserError> {
+        let is_map = self.parse_keyword(Keyword::MAP);
+
         self.expect_token(&Token::LBrace)?;
 
-        let values = self.parse_comma_separated(Self::parse_duckdb_struct_field)?;
+        let fields =
+            self.parse_comma_separated(|parser| parser.parse_duckdb_dictionary_field(is_map))?;
 
         self.expect_token(&Token::RBrace)?;
 
-        Ok(Expr::Struct {
-            values,
-            fields: vec![],
-            array_notation: true,
-        })
+        Ok(Expr::Dictionary { fields, is_map })
     }
 
-    /// Parse an expression value for a duckdb struct [1]
+    /// Parse an expression value for a duckdb dictionary [1][2]
     /// Syntax
     /// ```sql
-    /// 'name': expr
+    /// key_expr: value_expr
     /// ```
     ///
-    /// [1]: https://duckdb.org/docs/sql/data_types/struct#creating-structs
-    fn parse_duckdb_struct_field(&mut self) -> Result<Expr, ParserError> {
-        let next_token = self.next_token();
+    /// [1]: https://duckdb.org/docs/sql/data_types/map
+    /// [2]: https://duckdb.org/docs/sql/data_types/struct#creating-structs
+    fn parse_duckdb_dictionary_field(
+        &mut self,
+        is_map: bool,
+    ) -> Result<DictionaryField, ParserError> {
+        let key = if is_map {
+            self.parse_expr()?
+        } else {
+            let ident = self.parse_identifier(false)?;
 
-        let name = match next_token.token {
-            Token::SingleQuotedString(name) => name,
-            _ => return self.expected("single quoted string", next_token),
+            Expr::Identifier(ident)
         };
 
         self.expect_token(&Token::Colon)?;
 
-        let expr = self.parse_expr()?;
+        let value = self.parse_expr()?;
 
-        Ok(Expr::Named {
-            expr: Box::new(expr),
-            name: Ident::with_quote('\'', name),
+        Ok(DictionaryField {
+            key: Box::new(key),
+            value: Box::new(value),
         })
     }
 
