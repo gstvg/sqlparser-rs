@@ -75,6 +75,11 @@ impl Dialect for DuckDbDialect {
         true
     }
 
+    /// See <https://duckdb.org/docs/stable/sql/functions/lambda>
+    fn supports_python_style_lambda_functions(&self) -> bool {
+        true
+    }
+
     /// Returns true if this dialect allows the `EXTRACT` function to use single quotes in the part being extracted.
     fn allow_extract_single_quotes(&self) -> bool {
         true

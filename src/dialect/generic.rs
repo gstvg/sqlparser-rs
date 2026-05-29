@@ -312,4 +312,8 @@ impl Dialect for GenericDialect {
     fn supports_xml_expressions(&self) -> bool {
         true
     }
+
+    fn supports_python_style_lambda_functions(&self) -> bool {
+        true
+    }
 }

@@ -16316,6 +16316,23 @@ fn test_lambdas() {
 }
 
 #[test]
+fn test_python_style_lambdas() {
+    let dialects = all_dialects_where(|d| d.supports_python_style_lambda_functions());
+    dialects.verified_expr("list_transform([1, 2, 3], lambda x : x + 1)");
+    dialects.verified_expr("list_filter([1, 3, 1, 5], lambda x, i : x > i)");
+
+    let arrow_only = all_dialects_where(|d| {
+        d.supports_lambda_functions() && !d.supports_python_style_lambda_functions()
+    });
+    assert_eq!(
+        ParserError::ParserError("Expected: ), found: x".to_string()),
+        arrow_only
+            .parse_sql_statements("SELECT list_filter([1, 3, 1, 5], lambda x, i : x > i)")
+            .unwrap_err()
+    );
+}
+
+#[test]
 fn test_select_from_first() {
     let dialects = all_dialects_where(|d| d.supports_from_first_select());
     let q1 = "FROM capitals";

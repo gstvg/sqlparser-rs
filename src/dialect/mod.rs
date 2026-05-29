@@ -521,6 +521,17 @@ pub trait Dialect: Debug + Any {
         false
     }
 
+    /// Returns true if the dialect supports the Python-style lambda functions, for example:
+    ///
+    /// ```sql
+    /// SELECT list_transform([1, 2, 3], lambda x : x + 1); -- returns [2,3,4]
+    /// ```
+    ///
+    /// See <https://duckdb.org/docs/stable/sql/functions/lambda>
+    fn supports_python_style_lambda_functions(&self) -> bool {
+        false
+    }
+
     /// Returns true if the dialect supports multiple variable assignment
     /// using parentheses in a `SET` variable declaration.
     ///
